@@ -3,7 +3,7 @@
 use crate::algebra::field::Field;
 
 /// Field struct defination
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Fp<const PR: u64> {
     value: u64,
 }
@@ -62,7 +62,7 @@ impl<const PR: u64> Field for Fp<PR> {
 
     // unity operations
     fn pow(&self, x: u64) -> Self {
-        let mut result = 1;
+        let mut result = 1; // todo: better to call one() instead 
         let mut a = self.value;
         let mut b = x;
 
@@ -122,66 +122,120 @@ impl<const PR: u64> Fp<PR> {
     }
 }
 
-#[test]
-fn test_extended() {
-    let field_elem = Fp::<26>::new(11);
-    let result = field_elem.inv();
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
 
-    assert_eq!(19, result.unwrap().value);
+    #[test]
+    fn test_extended() {
+        let field_elem = Fp::<26>::new(11);
+        let result = field_elem.inv();
 
-    let field_elem = Fp::<7>::new(3);
-    let result = field_elem.inv();
+        assert_eq!(19, result.unwrap().value);
 
-    assert_eq!(5, result.unwrap().value);
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.inv();
 
-    let field_elem = Fp::<7>::new(1);
-    let result = field_elem.inv();
+        assert_eq!(5, result.unwrap().value);
 
-    assert_eq!(1, result.unwrap().value);
+        let field_elem = Fp::<7>::new(1);
+        let result = field_elem.inv();
 
-    let field_elem = Fp::<7>::new(6);
-    let result = field_elem.inv();
+        assert_eq!(1, result.unwrap().value);
 
-    assert_eq!(6, result.unwrap().value);
-}
+        let field_elem = Fp::<7>::new(6);
+        let result = field_elem.inv();
 
-#[test]
-fn test_fermats() {
-    let field_elem = Fp::<7>::new(3);
-    let result = field_elem.fermats_little_theorem();
+        assert_eq!(6, result.unwrap().value);
+    }
 
-    assert_eq!(5, result.unwrap().value);
+    #[test]
+    fn test_fermats() {
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.fermats_little_theorem();
 
-    let field_elem = Fp::<7>::new(1);
-    let result = field_elem.fermats_little_theorem();
+        assert_eq!(5, result.unwrap().value);
 
-    assert_eq!(1, result.unwrap().value);
+        let field_elem = Fp::<7>::new(1);
+        let result = field_elem.fermats_little_theorem();
 
-    let field_elem = Fp::<7>::new(6);
-    let result = field_elem.fermats_little_theorem();
+        assert_eq!(1, result.unwrap().value);
 
-    assert_eq!(6, result.unwrap().value);
-}
+        let field_elem = Fp::<7>::new(6);
+        let result = field_elem.fermats_little_theorem();
 
-#[test]
-fn test_pow() {
-    let field_elem = Fp::<7>::new(3);
-    let result = field_elem.pow(2);
+        assert_eq!(6, result.unwrap().value);
+    }
 
-    assert_eq!(2, result.value);
+    #[test]
+    fn test_pow() {
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.pow(2);
 
-    let field_elem = Fp::<7>::new(4);
-    let result = field_elem.pow(2);
+        assert_eq!(2, result.value);
 
-    assert_eq!(2, result.value);
+        let field_elem = Fp::<7>::new(4);
+        let result = field_elem.pow(2);
 
-    let field_elem = Fp::<7>::new(5);
-    let result = field_elem.pow(2);
+        assert_eq!(2, result.value);
 
-    assert_eq!(4, result.value);
+        let field_elem = Fp::<7>::new(5);
+        let result = field_elem.pow(2);
 
-    let field_elem = Fp::<7>::new(6);
-    let result = field_elem.pow(2);
+        assert_eq!(4, result.value);
 
-    assert_eq!(1, result.value);
+        let field_elem = Fp::<7>::new(6);
+        let result = field_elem.pow(2);
+
+        assert_eq!(1, result.value);
+    }
+
+    /// field axiom tests
+    /// Verify that these assumptions hold up
+    /// a + 0 = a
+    /// a * 1 = a
+    /// a * 0 = 0
+    /// a + (-a) = 0
+    /// a * inv(a) = 1
+    /// (a + b) + c = a + (b + c)
+    /// a * (b + c) = ab + ac
+    #[test]
+    fn test_field_axioms() {
+        // a + 0 = a
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.add(&Fp::<7>::zero());
+        assert_eq!(field_elem, result);
+
+        // a * 1 = a
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.mul(&Fp::<7>::one());
+        assert_eq!(field_elem, result);
+
+        // a * 0 = 0
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.mul(&Fp::<7>::zero());
+        assert_eq!(Fp::<7>::zero(), result);
+
+        // a + (-a) = 0
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.add(&field_elem.neg());
+        assert_eq!(result, Fp::<7>::zero());
+
+        // a * inv(a) = 1
+        let field_elem = Fp::<7>::new(3);
+        let result = field_elem.mul(&field_elem.inv().unwrap());
+        assert_eq!(result, Fp::<7>::one());
+
+        // (a + b) + c = a + (b + c)
+        let a = Fp::<7>::new(1);
+        let b = Fp::<7>::new(2);
+        let c = Fp::<7>::new(3);
+        let aplusb = a.add(&b);
+        let bplusc = b.add(&c);
+        assert_eq!(aplusb.add(&c), a.add(&bplusc));
+
+        let ab = a.mul(&b);
+        let ac = a.mul(&c);
+        assert_eq!(a.mul(&bplusc), ab.add(&ac));
+    }
 }
