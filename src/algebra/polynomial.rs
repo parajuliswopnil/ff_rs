@@ -26,8 +26,11 @@ where
     }
 
     /// returns degree of the polynomial
-    pub fn degree(&self) -> usize {
-        max(self.cofficients.len() - 1, 0)
+    pub fn degree(&self) -> Option<usize> {
+        if self.is_zero() {
+            return None;
+        }
+        return Some(self.cofficients.len() - 1);
     }
 
     /// zero polynomial
@@ -138,8 +141,9 @@ where
         let mut remainder = self.clone();
         let mut quotient = Self::zero();
 
-        while remainder.degree() >= other.degree() {
-            let k = remainder.degree() - other.degree();
+        while remainder.degree().is_some() && remainder.degree().unwrap() >= other.degree().unwrap()
+        {
+            let k = remainder.degree().unwrap() - other.degree().unwrap();
 
             let c = remainder
                 .lead_coeff()
@@ -166,5 +170,77 @@ where
             }
             break;
         }
+    }
+}
+
+mod tests {
+    #![allow(unused_imports)]
+    use super::*;
+    use crate::algebra::fp::Fp;
+
+    #[test]
+    fn test_polynomial_division_exact() {
+        // (x^2 + 3x + 2) / (x + 1) = x + 2
+        // quotient = x + 2
+        // remainder = 0
+
+        let f = Polynomial::<Fp<7>>::new(vec![Fp::new(2), Fp::new(3), Fp::new(1)]);
+
+        let g = Polynomial::<Fp<7>>::new(vec![Fp::new(1), Fp::new(1)]);
+
+        let (q, r) = f.div(&g).unwrap();
+
+        let expected_q = Polynomial::<Fp<7>>::new(vec![Fp::new(2), Fp::new(1)]);
+
+        let expected_r = Polynomial::<Fp<7>>::zero();
+
+        assert_eq!(q, expected_q);
+        assert_eq!(r, expected_r);
+    }
+
+    #[test]
+    fn test_polynomial_division_with_remainder() {
+        // (x^2 + 1) / (x + 1)
+        // quotient = x - 1
+        // remainder = 2
+        // in F7: -1 ≡ 6
+
+        let f = Polynomial::<Fp<7>>::new(vec![Fp::new(1), Fp::new(0), Fp::new(1)]);
+
+        let g = Polynomial::<Fp<7>>::new(vec![Fp::new(1), Fp::new(1)]);
+
+        let (q, r) = f.div(&g).unwrap();
+
+        let expected_q = Polynomial::<Fp<7>>::new(vec![Fp::new(6), Fp::new(1)]);
+
+        let expected_r = Polynomial::<Fp<7>>::new(vec![Fp::new(2)]);
+
+        assert_eq!(q, expected_q);
+        assert_eq!(r, expected_r);
+    }
+
+    #[test]
+    fn test_divisor_higher_degree() {
+        // (x + 1) / (x^2 + 1)
+        // quotient = 0
+        // remainder = x + 1
+
+        let f = Polynomial::<Fp<7>>::new(vec![Fp::new(1), Fp::new(1)]);
+
+        let g = Polynomial::<Fp<7>>::new(vec![Fp::new(1), Fp::new(0), Fp::new(1)]);
+
+        let (q, r) = f.div(&g).unwrap();
+
+        assert_eq!(q, Polynomial::<Fp<7>>::zero());
+        assert_eq!(r, f);
+    }
+
+    #[test]
+    fn test_division_by_zero_polynomial() {
+        let f = Polynomial::<Fp<7>>::new(vec![Fp::new(1), Fp::new(2)]);
+
+        let g = Polynomial::<Fp<7>>::zero();
+
+        assert!(f.div(&g).is_none());
     }
 }
