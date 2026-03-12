@@ -3,7 +3,7 @@
 use crate::algebra::field::Field;
 
 /// Field struct defination
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Fp<const PR: u64> {
     value: u64,
 }

@@ -1,7 +1,7 @@
 //! Defines the trait to be implemented by a field
 
 /// Field trait defination
-pub trait Field: Eq + PartialEq {
+pub trait Field: Eq + PartialEq + Clone {
     /// Creates new instance of the trait
     /// ## Arguments
     /// - `a`: Field element
