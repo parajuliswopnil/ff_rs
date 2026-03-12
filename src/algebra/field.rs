@@ -1,13 +1,12 @@
 //! Defines the trait to be implemented by a field
 
 /// Field trait defination
-pub trait Field {
+pub trait Field: Eq + PartialEq {
     /// Creates new instance of the trait
     /// ## Arguments
     /// - `a`: Field element
     fn new(a: u64) -> Self;
     // additive operations
-
     /// adds self and other field elements and returns the result
     fn add(&self, other: &Self) -> Self;
 
