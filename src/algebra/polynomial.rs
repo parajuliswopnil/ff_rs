@@ -1,9 +1,9 @@
 use std::cmp::max;
 
-use crate::algebra::field::Field;
+use crate::algebra::{field::Field, polynomial};
 
 /// Polynomial representing struct
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Polynomial<F>
 where
     F: Field,
@@ -26,8 +26,8 @@ where
     }
 
     /// returns degree of the polynomial
-    pub fn degree(&self) -> u64 {
-        max((self.cofficients.len() - 1) as u64, 0)
+    pub fn degree(&self) -> usize {
+        max(self.cofficients.len() - 1, 0)
     }
 
     /// zero polynomial
@@ -120,12 +120,42 @@ where
         result
     }
 
+    /// lead cofficient
+    pub fn lead_coeff(&self) -> Option<F> {
+        self.cofficients.last().cloned()
+    }
+
+    /// is zero
+    pub fn is_zero(&self) -> bool {
+        Self::zero() == *self
+    }
+
     /// polynomial division
-    pub fn div(&self, other: &Self) -> (Self, Self) {
-        if self.degree() < other.degree() {
-            return (Self::zero(), Self::zero().add(self));
+    pub fn div(&self, other: &Self) -> Option<(Self, Self)> {
+        if other.is_zero() {
+            return None;
         }
-        todo!()
+        let mut remainder = self.clone();
+        let mut quotient = Self::zero();
+
+        while remainder.degree() >= other.degree() {
+            let k = remainder.degree() - other.degree();
+
+            let c = remainder
+                .lead_coeff()
+                .unwrap()
+                .mul(&other.lead_coeff().unwrap().inv().unwrap());
+
+            let mut tx_coeff = vec![F::zero(); k + 1];
+            tx_coeff[k] = F::one();
+
+            let tx = Self::new(tx_coeff).scalar_mul(&c);
+
+            quotient = quotient.add(&tx);
+            let rem = tx.mul(other);
+            remainder = remainder.sub(&rem);
+        }
+        Some((quotient, remainder))
     }
 
     fn normalize(cofficients: &mut Vec<F>) {
