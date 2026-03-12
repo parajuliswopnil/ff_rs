@@ -196,6 +196,9 @@ mod tests {
 
         assert_eq!(q, expected_q);
         assert_eq!(r, expected_r);
+
+        let f_reconstructed = q.mul(&g).add(&r);
+        assert_eq!(f, f_reconstructed);
     }
 
     #[test]
@@ -217,6 +220,9 @@ mod tests {
 
         assert_eq!(q, expected_q);
         assert_eq!(r, expected_r);
+
+        let f_reconstructed = q.mul(&g).add(&r);
+        assert_eq!(f, f_reconstructed);
     }
 
     #[test]
@@ -233,6 +239,9 @@ mod tests {
 
         assert_eq!(q, Polynomial::<Fp<7>>::zero());
         assert_eq!(r, f);
+
+        let f_reconstructed = q.mul(&g).add(&r);
+        assert_eq!(f, f_reconstructed);
     }
 
     #[test]
