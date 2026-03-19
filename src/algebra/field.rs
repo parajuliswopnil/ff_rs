@@ -6,6 +6,10 @@ pub trait Field: Eq + PartialEq + Clone {
     /// ## Arguments
     /// - `a`: Field element
     fn new(a: u64) -> Self;
+
+    /// returns value associated to self
+    fn value(&self) -> u64;
+
     // additive operations
     /// adds self and other field elements and returns the result
     fn add(&self, other: &Self) -> Self;

@@ -10,6 +10,8 @@ where
     Self: Sized,
 {
     /// returns modulus polynomial
+    /// instead of doing this, later change this to returns &'static Polynomial...
+    /// so that the modulus is not created new every time we call this.
     fn inner() -> Polynomial<F>;
 }
 
@@ -35,6 +37,11 @@ where
             polynomial,
             phantom_data: PhantomData,
         }
+    }
+
+    /// return polynomial associated to self
+    pub fn polynomial(&self) -> Polynomial<F> {
+        self.polynomial.clone()
     }
 
     /// add

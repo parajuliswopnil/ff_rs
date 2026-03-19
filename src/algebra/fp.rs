@@ -13,6 +13,11 @@ impl<const PR: u64> Field for Fp<PR> {
         let value = a % PR;
         Self { value }
     }
+
+    fn value(&self) -> u64 {
+        self.value
+    }
+
     // additive operations
     fn add(&self, other: &Self) -> Self {
         let result = (self.value + other.value) % PR;

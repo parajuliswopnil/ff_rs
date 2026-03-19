@@ -49,6 +49,11 @@ where
         }
     }
 
+    /// returns cofficients associated to self
+    pub fn cofficients(&self) -> Vec<F> {
+        self.cofficients.clone()
+    }
+
     /// add two polynomials
     pub fn add(&self, other: &Self) -> Self {
         let mut result = vec![];
