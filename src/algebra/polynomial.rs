@@ -1,6 +1,8 @@
+//! Polynomial implemention
+
 use std::cmp::max;
 
-use crate::algebra::{field::Field, polynomial};
+use crate::algebra::field::Field;
 
 /// Polynomial representing struct
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -30,13 +32,20 @@ where
         if self.is_zero() {
             return None;
         }
-        return Some(self.cofficients.len() - 1);
+        Some(self.cofficients.len() - 1)
     }
 
     /// zero polynomial
     pub fn zero() -> Self {
         Self {
             cofficients: vec![],
+        }
+    }
+
+    /// one
+    pub fn one() -> Self {
+        Self {
+            cofficients: vec![F::one()],
         }
     }
 
