@@ -1,6 +1,5 @@
 //! AES implementation
-
-use std::u64;
+use std::u8;
 
 use crate::algebra::{
     extension::{ExtensionField, Modulus},
@@ -47,9 +46,26 @@ impl GF256 {
     pub fn to_byte(&self) -> u8 {
         let polynomial = self.polynomial();
         let cofficients = polynomial.cofficients();
-
-        let bits: Vec<u8> = cofficients.iter().map(|elem| elem.value() as u8).collect();
+        let mut bits = [0; 8];
+        for i in 0..cofficients.len() {
+            bits[i] = cofficients[i].value() as u8;
+        }
         bits_to_byte_lsb(bits.as_slice())
+    }
+
+    /// affine transfromation
+    pub fn sbox(&self) -> u8 {
+        let y = if self.is_zero() {
+            0
+        } else {
+            self.inv().unwrap().to_byte()
+        };
+
+        y ^ ((y << 1) | (y >> 7))
+            ^ ((y << 2) | (y >> 6))
+            ^ ((y << 3) | (y >> 5))
+            ^ ((y << 4) | (y >> 4))
+            ^ 0x63
     }
 }
 
@@ -78,4 +94,56 @@ fn bits_to_byte_lsb(bits: &[u8]) -> u8 {
 
 fn to_field_element(value: u8) -> Fp<2> {
     Fp::<2>::new(value as u64)
+}
+
+mod tests {
+    #[allow(unused_imports, dead_code)]
+    use super::*;
+
+    #[test]
+    fn test_byte_conversion() {
+        let b = 0x63;
+
+        assert_eq!(GF256::from_byte(b).to_byte(), b)
+    }
+
+    #[test]
+    fn test_inversion() {
+        for b in 1..=255 {
+            let a = GF256::from_byte(b);
+            let inv = a.inv().unwrap();
+            let prod = a.mul(&inv).unwrap();
+            assert_eq!(prod.to_byte(), 1);
+        }
+    }
+
+    #[test]
+    fn test_sbox() {
+        let a = GF256::from_byte(0x00);
+        assert_eq!(a.sbox(), 0x63);
+
+        let a = GF256::from_byte(0x53);
+        assert_eq!(a.sbox(), 0xED);
+
+        let a = GF256::from_byte(0x7C);
+        assert_eq!(a.sbox(), 0x10);
+
+        let a = GF256::from_byte(0x01);
+        assert_eq!(a.sbox(), 0x7c);
+
+        let a = GF256::from_byte(0xf0);
+        assert_eq!(a.sbox(), 0x8c);
+
+        let a = GF256::from_byte(0x9a);
+        assert_eq!(a.sbox(), 0xb8);
+
+        let a = GF256::from_byte(0x2b);
+        assert_eq!(a.sbox(), 0xF1);
+
+        let a = GF256::from_byte(0xFF);
+        assert_eq!(a.sbox(), 0x16);
+
+        let a = GF256::from_byte(0xFE);
+        assert_eq!(a.sbox(), 0xBB);
+    }
 }

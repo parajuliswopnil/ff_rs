@@ -70,6 +70,11 @@ where
         Self::new(Polynomial::<F>::one())
     }
 
+    /// is zero
+    pub fn is_zero(&self) -> bool {
+        self.polynomial.is_zero()
+    }
+
     /// zero
     pub fn zero() -> Self {
         Self::new(Polynomial::<F>::zero())
