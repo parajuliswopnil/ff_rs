@@ -59,6 +59,64 @@ impl AESState {
             *b = gf.sbox();
         }
     }
+
+    /// helper function to multiply
+    fn gf_mul(a: u8, b: u8) -> u8 {
+        let x = GF256::from_byte(a);
+        let y = GF256::from_byte(b);
+
+        x.mul(&y).unwrap().to_byte()
+    }
+
+    fn mul_2(a: u8) -> u8 {
+        Self::gf_mul(a, 0x02)
+    }
+
+    fn mul_3(a: u8) -> u8 {
+        Self::gf_mul(a, 0x03)
+    }
+
+    fn mix_single_column(col: &mut [u8; 4]) {
+        let a0 = col[0];
+        let a1 = col[1];
+        let a2 = col[2];
+        let a3 = col[3];
+
+        col[0] = Self::mul_2(a0) ^ Self::mul_3(a1) ^ a2 ^ a3;
+        col[1] = a0 ^ Self::mul_2(a1) ^ Self::mul_3(a2) ^ a3;
+        col[2] = a0 ^ a1 ^ Self::mul_2(a2) ^ Self::mul_3(a3);
+        col[3] = Self::mul_3(a0) ^ a1 ^ a2 ^ Self::mul_2(a3);
+    }
+
+    /// mix columns
+    pub fn mix_column(&mut self) {
+        for c in 0..4 {
+            let i = c * 4;
+
+            let mut col = [
+                self.data[i],
+                self.data[i + 1],
+                self.data[i + 2],
+                self.data[i + 3],
+            ];
+
+            Self::mix_single_column(&mut col);
+
+            self.data[i] = col[0];
+            self.data[i + 1] = col[1];
+            self.data[i + 2] = col[2];
+            self.data[i + 3] = col[3];
+        }
+    }
+
+    /// add round key
+    pub fn add_round_key(&mut self, round_key: &[u8; 16]) {
+        () = (0..16)
+            .map(|i| {
+                self.data[i] ^= round_key[i];
+            })
+            .collect();
+    }
 }
 
 /// AES Modulus
@@ -222,5 +280,51 @@ mod tests {
                 0x06, 0x0b,
             ]
         );
+    }
+    #[test]
+    fn test_mix_single_column() {
+        let mut column = [0xdb, 0x13, 0x53, 0x45];
+        AESState::mix_single_column(&mut column);
+
+        assert_eq!(&column, &[0x8e, 0x4d, 0xa1, 0xbc]);
+    }
+
+    #[test]
+    fn test_add_round_key_basic() {
+        let mut state = AESState::new([
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd,
+            0xee, 0xff,
+        ]);
+
+        let round_key = [
+            0xff, 0xee, 0xdd, 0xcc, 0xbb, 0xaa, 0x99, 0x88, 0x77, 0x66, 0x55, 0x44, 0x33, 0x22,
+            0x11, 0x00,
+        ];
+
+        state.add_round_key(&round_key);
+
+        assert_eq!(
+            state.data,
+            [
+                0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+                0xff, 0xff,
+            ]
+        );
+    }
+
+    #[test]
+    fn test_add_round_key_zero_key() {
+        let original = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+            0x0f, 0x10,
+        ];
+
+        let mut state = AESState::new(original);
+
+        let zero_key = [0u8; 16];
+
+        state.add_round_key(&zero_key);
+
+        assert_eq!(state.data, original);
     }
 }
