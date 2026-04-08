@@ -1,12 +1,65 @@
 //! AES implementation
-use std::u8;
-
 use crate::algebra::{
     extension::{ExtensionField, Modulus},
     field::Field,
     fp::Fp,
     polynomial::Polynomial,
 };
+
+/// AES state
+#[derive(Debug, Clone)]
+pub struct AESState {
+    /// dat
+    pub data: [u8; 16],
+}
+
+impl AESState {
+    /// creates new instance of AES state
+    pub fn new(data: [u8; 16]) -> Self {
+        Self { data }
+    }
+
+    /// shift rows
+    pub fn shift_rows(&mut self) {
+        let mut temp = [0u8; 16];
+
+        let s = &self.data;
+
+        // Row 0 (no shift)
+        temp[0] = s[0];
+        temp[4] = s[4];
+        temp[8] = s[8];
+        temp[12] = s[12];
+
+        // Row 1 (shift left by 1)
+        temp[1] = s[5];
+        temp[5] = s[9];
+        temp[9] = s[13];
+        temp[13] = s[1];
+
+        // Row 2 (shift left by 2)
+        temp[2] = s[10];
+        temp[6] = s[14];
+        temp[10] = s[2];
+        temp[14] = s[6];
+
+        // Row 3 (shift left by 3)
+        temp[3] = s[15];
+        temp[7] = s[3];
+        temp[11] = s[7];
+        temp[15] = s[11];
+
+        self.data = temp;
+    }
+
+    /// sub bytes
+    pub fn sub_bytes(&mut self) {
+        for b in &mut self.data {
+            let gf = GF256::from_byte(*b);
+            *b = gf.sbox();
+        }
+    }
+}
 
 /// AES Modulus
 #[derive(Debug)]
@@ -66,6 +119,12 @@ impl GF256 {
             ^ ((y << 3) | (y >> 5))
             ^ ((y << 4) | (y >> 4))
             ^ 0x63
+    }
+
+    /// mix column
+    pub fn mix_column(&self) -> [u8; 4] {
+        // self.mul(:)
+        todo!()
     }
 }
 
@@ -145,5 +204,23 @@ mod tests {
 
         let a = GF256::from_byte(0xFE);
         assert_eq!(a.sbox(), 0xBB);
+    }
+
+    #[test]
+    fn test_shift_rows() {
+        let mut state = AESState::new([
+            0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
+            0x0e, 0x0f,
+        ]);
+
+        state.shift_rows();
+
+        assert_eq!(
+            state.data,
+            [
+                0x00, 0x05, 0x0a, 0x0f, 0x04, 0x09, 0x0e, 0x03, 0x08, 0x0d, 0x02, 0x07, 0x0c, 0x01,
+                0x06, 0x0b,
+            ]
+        );
     }
 }
