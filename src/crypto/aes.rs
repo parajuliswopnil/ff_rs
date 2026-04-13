@@ -119,6 +119,158 @@ impl AESState {
     }
 }
 
+/// key schedule
+pub mod key_schedule {
+    use crate::crypto::aes::GF256;
+
+    /// wofd
+    pub type Word = [u8; 4];
+
+    /// rotate word
+    pub fn rot_word(word: Word) -> Word {
+        [word[1], word[2], word[3], word[0]]
+    }
+
+    /// sub word
+    pub fn sub_word(word: Word) -> Word {
+        [
+            GF256::from_byte(word[0]).sbox(),
+            GF256::from_byte(word[1]).sbox(),
+            GF256::from_byte(word[2]).sbox(),
+            GF256::from_byte(word[3]).sbox(),
+        ]
+    }
+
+    /// rcon
+    pub fn rcon(round: usize) -> Word {
+        assert!((1..=10).contains(&round));
+
+        let mut value = GF256::from_byte(1);
+
+        let two = GF256::from_byte(0x02);
+
+        for _ in 1..round {
+            value = value.mul(&two).unwrap();
+        }
+
+        [value.to_byte(), 0x00, 0x00, 0x00]
+    }
+
+    /// full g function
+    pub fn g(word: Word, round: usize) -> Word {
+        let mut w = rot_word(word);
+
+        w = sub_word(w);
+
+        let rc = rcon(round);
+
+        for i in 0..4 {
+            w[i] ^= rc[i]
+        }
+
+        w
+    }
+
+    /// round key
+    pub fn round_key(words: &[Word], round: usize) -> [u8; 16] {
+        let mut key = [0u8; 16];
+
+        for i in 0..4 {
+            let word = words[round * 4 + i];
+
+            key[4 * i] = word[0];
+            key[4 * i + 1] = word[1];
+            key[4 * i + 2] = word[2];
+            key[4 * i + 3] = word[3];
+        }
+
+        key
+    }
+}
+
+/// key expansion
+pub mod key_expansion {
+    use crate::crypto::aes::key_schedule::{self, Word};
+
+    fn xor_words(a: Word, b: Word) -> Word {
+        let mut res = Word::default();
+        for i in 0..4 {
+            res[i] = a[i] ^ b[i];
+        }
+
+        res
+    }
+
+    /// key expansion
+    pub fn key_expansion(key: [u8; 16]) -> Vec<Word> {
+        const NK: usize = 4;
+        const NB: usize = 4;
+        const NR: usize = 10;
+
+        const TOTAL_WORDS: usize = NB * (NR + 1);
+
+        let mut w: Vec<Word> = vec![[0u8; 4]; TOTAL_WORDS];
+
+        // First 4 words come directly from key
+        for i in 0..NK {
+            w[i] = [key[4 * i], key[4 * i + 1], key[4 * i + 2], key[4 * i + 3]];
+        }
+
+        // Generate remaining words
+        for i in NK..TOTAL_WORDS {
+            let mut temp = w[i - 1];
+
+            if i % NK == 0 {
+                temp = key_schedule::g(temp, i / NK);
+            }
+
+            w[i] = xor_words(w[i - NK], temp);
+        }
+
+        w
+    }
+}
+
+/// encryption logic
+pub mod aes_encrypt {
+    use crate::crypto::aes::{AESState, key_expansion, key_schedule};
+
+    /// encrypt block
+    pub fn encrypt_block(plaintext: [u8; 16], key: [u8; 16]) -> [u8; 16] {
+        let words = key_expansion::key_expansion(key);
+
+        let mut state = AESState::new(plaintext);
+
+        // Initial round
+        let rk0 = key_schedule::round_key(&words, 0);
+        state.add_round_key(&rk0);
+
+        // Rounds 1–9
+        for round in 1..10 {
+            state.sub_bytes();
+
+            state.shift_rows();
+
+            state.mix_column();
+
+            let rk = key_schedule::round_key(&words, round);
+
+            state.add_round_key(&rk);
+        }
+
+        // Final round
+        state.sub_bytes();
+
+        state.shift_rows();
+
+        let rk_last = key_schedule::round_key(&words, 10);
+
+        state.add_round_key(&rk_last);
+
+        state.data
+    }
+}
+
 /// AES Modulus
 #[derive(Debug)]
 pub struct AESModulus;
@@ -214,8 +366,9 @@ fn to_field_element(value: u8) -> Fp<2> {
 }
 
 mod tests {
-    #[allow(unused_imports, dead_code)]
+    #![allow(unused_imports, dead_code)]
     use super::*;
+    use crate::crypto::aes::key_schedule::Word;
 
     #[test]
     fn test_byte_conversion() {
@@ -326,5 +479,117 @@ mod tests {
         state.add_round_key(&zero_key);
 
         assert_eq!(state.data, original);
+    }
+
+    #[test]
+    fn test_rot_word_basic() {
+        let input: Word = [0x09, 0xcf, 0x4f, 0x3c];
+
+        let result = key_schedule::rot_word(input);
+
+        assert_eq!(result, [0xcf, 0x4f, 0x3c, 0x09]);
+    }
+
+    #[test]
+    fn test_sub_word_known_example() {
+        let input: Word = [0xcf, 0x4f, 0x3c, 0x09];
+
+        let result = key_schedule::sub_word(input);
+
+        assert_eq!(result, [0x8a, 0x84, 0xeb, 0x01]);
+    }
+
+    #[test]
+    fn test_sub_word_manual() {
+        let input: Word = [0x53, 0x7c, 0x01, 0xff];
+
+        let result = key_schedule::sub_word(input);
+
+        assert_eq!(
+            result,
+            [
+                GF256::from_byte(0x53).sbox(),
+                GF256::from_byte(0x7c).sbox(),
+                GF256::from_byte(0x01).sbox(),
+                GF256::from_byte(0xff).sbox(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_rcon_round_5() {
+        assert_eq!(key_schedule::rcon(5), [0x10, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_rcon_round_10() {
+        assert_eq!(key_schedule::rcon(10), [0x36, 0x00, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_g_round_1() {
+        let input: Word = [0x09, 0xcf, 0x4f, 0x3c];
+
+        let result = key_schedule::g(input, 1);
+
+        assert_eq!(result, [0x8b, 0x84, 0xeb, 0x01]);
+    }
+
+    #[test]
+    fn test_key_expansion_first_generated_word() {
+        let key = [
+            0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+            0x4f, 0x3c,
+        ];
+
+        let w = key_expansion::key_expansion(key);
+
+        assert_eq!(w[4], [0xa0, 0xfa, 0xfe, 0x17]);
+    }
+
+    #[test]
+    fn test_round_1_key_words() {
+        let key = [
+            0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+            0x4f, 0x3c,
+        ];
+
+        let w = key_expansion::key_expansion(key);
+
+        assert_eq!(w[4], [0xa0, 0xfa, 0xfe, 0x17]);
+        assert_eq!(w[5], [0x88, 0x54, 0x2c, 0xb1]);
+        assert_eq!(w[6], [0x23, 0xa3, 0x39, 0x39]);
+        assert_eq!(w[7], [0x2a, 0x6c, 0x76, 0x05]);
+    }
+
+    #[test]
+    fn test_key_expansion_word_count() {
+        let key = [0u8; 16];
+
+        let w = key_expansion::key_expansion(key);
+
+        assert_eq!(w.len(), 44);
+    }
+
+    #[test]
+    fn test_encrypt_block_known_vector() {
+        let key = [
+            0x2b, 0x7e, 0x15, 0x16, 0x28, 0xae, 0xd2, 0xa6, 0xab, 0xf7, 0x15, 0x88, 0x09, 0xcf,
+            0x4f, 0x3c,
+        ];
+
+        let plaintext = [
+            0x32, 0x43, 0xf6, 0xa8, 0x88, 0x5a, 0x30, 0x8d, 0x31, 0x31, 0x98, 0xa2, 0xe0, 0x37,
+            0x07, 0x34,
+        ];
+
+        let expected = [
+            0x39, 0x25, 0x84, 0x1d, 0x02, 0xdc, 0x09, 0xfb, 0xdc, 0x11, 0x85, 0x97, 0x19, 0x6a,
+            0x0b, 0x32,
+        ];
+
+        let ciphertext = aes_encrypt::encrypt_block(plaintext, key);
+
+        assert_eq!(ciphertext, expected);
     }
 }
